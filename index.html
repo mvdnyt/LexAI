@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LexAI — Legal Document Assistant</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Token System ── */
+    :root {
+      --navy:       #0B1629;
+      --navy-mid:   #142038;
+      --navy-light: #1E3050;
+      --brass:      #C9A84C;
+      --brass-dim:  #8B6E2A;
+      --parchment:  #F5EDD6;
+      --parchment2: #EDE2C4;
+      --slate:      #8B9BB4;
+      --slate-light:#B8C5D6;
+      --white:      #FFFFFF;
+      --danger:     #D94F4F;
+      --warn:       #D9934F;
+      --ok:         #4CAF6A;
+      --border:     rgba(201,168,76,0.18);
+      --border-soft: rgba(139,155,180,0.2);
+      --radius:     6px;
+      --shadow:     0 2px 16px rgba(0,0,0,0.35);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--navy);
+      color: var(--white);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      font-size: 14px;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--navy-mid);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .logo-wordmark {
+      font-family: 'DM Serif Display', serif;
+      font-size: 22px;
+      color: var(--white);
+      letter-spacing: 0.02em;
+    }
+
+    .logo-wordmark em {
+      color: var(--brass);
+      font-style: normal;
+    }
+
+    .logo-tag {
+      font-size: 11px;
+      color: var(--slate);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .key-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--navy-light);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 5px 12px;
+    }
+
+    .key-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--slate);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+
+    .key-field input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--white);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      width: 180px;
+    }
+
+    .key-field input::placeholder { color: var(--slate); }
+
+    .status-pip {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--slate);
+      flex-shrink: 0;
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    .status-pip.on {
+      background: var(--ok);
+      box-shadow: 0 0 6px var(--ok);
+    }
+
+    .disclaimer-badge {
+      font-size: 10px;
+      color: var(--slate);
+      border: 1px solid var(--border-soft);
+      border-radius: 20px;
+      padding: 3px 10px;
+      letter-spacing: 0.03em;
+    }
+
+    /* ── Layout ── */
+    .workspace {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Left Panel ── */
+    .panel-left {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--navy-mid);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--slate);
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .upload-zone {
+      margin: 14px;
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .upload-zone:hover {
+      border-color: var(--brass);
+      background: rgba(201,168,76,0.05);
+    }
+
+    .upload-zone input { display: none; }
+
+    .upload-icon {
+      font-size: 22px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .upload-text {
+      font-size: 12px;
+      color: var(--slate-light);
+      line-height: 1.4;
+    }
+
+    .upload-text strong {
+      color: var(--brass);
+      display: block;
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+
+    .doc-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 10px 10px;
+    }
+
+    .doc-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      margin-bottom: 4px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .doc-item:hover {
+      background: var(--navy-light);
+      border-color: var(--border-soft);
+    }
+
+    .doc-item.active {
+      background: rgba(201,168,76,0.1);
+      border-color: var(--brass-dim);
+    }
+
+    .doc-icon {
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .doc-meta { flex: 1; min-width: 0; }
+
+    .doc-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--white);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .doc-pages {
+      font-size: 10px;
+      color: var(--slate);
+      margin-top: 1px;
+    }
+
+    .doc-risk-chip {
+      font-size: 9px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      flex-shrink: 0;
+    }
+
+    .risk-high { background: rgba(217,79,79,0.2); color: #E87878; }
+    .risk-med  { background: rgba(217,147,79,0.2); color: #E8A878; }
+    .risk-low  { background: rgba(76,175,106,0.2); color: #78E89A; }
+    .risk-none { background: rgba(139,155,180,0.15); color: var(--slate); }
+
+    .doc-del {
+      background: none;
+      border: none;
+      color: var(--slate);
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-size: 14px;
+      line-height: 1;
+      flex-shrink: 0;
+      transition: color 0.15s;
+    }
+
+    .doc-del:hover { color: var(--danger); }
+
+    /* ── Center Panel ── */
+    .panel-center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #1a1a2e;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .pdf-toolbar {
+      background: var(--navy-mid);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .pdf-toolbar-title {
+      font-size: 12px;
+      color: var(--slate-light);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pdf-page-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--slate);
+    }
+
+    #pdf-scroll {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 20px;
+    }
+
+    .pdf-page-canvas {
+      max-width: 100%;
+      height: auto;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      border-radius: 3px;
+      display: block;
+    }
+
+    .empty-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--slate);
+      text-align: center;
+      gap: 12px;
+    }
+
+    .empty-center-icon { font-size: 48px; opacity: 0.4; }
+
+    .empty-center h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 20px;
+      color: var(--slate-light);
+      font-weight: 400;
+    }
+
+    .empty-center p { font-size: 13px; max-width: 260px; line-height: 1.5; }
+
+    /* ── Right Panel ── */
+    .panel-right {
+      width: 380px;
+      flex-shrink: 0;
+      background: var(--navy-mid);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Tabs */
+    .tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--slate);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 11px 6px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .tab-btn:hover { color: var(--slate-light); }
+
+    .tab-btn.active {
+      color: var(--brass);
+      border-bottom-color: var(--brass);
+    }
+
+    .tab-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+    .tab-panel.active { display: flex; }
+
+    /* ── Ask Tab ── */
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .msg-role {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--slate);
+    }
+
+    .msg.user .msg-role { color: var(--brass-dim); align-self: flex-end; }
+
+    .msg-bubble {
+      padding: 10px 13px;
+      border-radius: var(--radius);
+      font-size: 13.5px;
+      line-height: 1.55;
+      max-width: 92%;
+    }
+
+    .msg.bot .msg-bubble {
+      background: var(--navy-light);
+      border: 1px solid var(--border-soft);
+      align-self: flex-start;
+    }
+
+    .msg.user .msg-bubble {
+      background: rgba(201,168,76,0.12);
+      border: 1px solid rgba(201,168,76,0.25);
+      align-self: flex-end;
+      text-align: right;
+    }
+
+    .msg.error .msg-bubble {
+      background: rgba(217,79,79,0.1);
+      border: 1px solid rgba(217,79,79,0.3);
+      color: #E87878;
+    }
+
+    .clause-ref {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      background: rgba(201,168,76,0.15);
+      color: var(--brass);
+      padding: 1px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+
+    .typing-dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--slate);
+      animation: blink 1.2s infinite;
+      margin: 0 2px;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes blink {
+      0%, 80%, 100% { opacity: 0.2; }
+      40% { opacity: 1; }
+    }
+
+    .suggested-qs {
+      padding: 0 16px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .sq-label {
+      font-size: 10px;
+      color: var(--slate);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 2px;
+    }
+
+    .sq-btn {
+      background: var(--navy-light);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      color: var(--slate-light);
+      font-size: 12px;
+      padding: 7px 10px;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .sq-btn:hover {
+      border-color: var(--brass-dim);
+      color: var(--white);
+    }
+
+    .chat-input-area {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+
+    .chat-input-area textarea {
+      flex: 1;
+      background: var(--navy-light);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      padding: 9px 12px;
+      resize: none;
+      height: 70px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .chat-input-area textarea:focus { border-color: var(--brass-dim); }
+    .chat-input-area textarea::placeholder { color: var(--slate); }
+
+    .send-btn {
+      background: var(--brass);
+      border: none;
+      border-radius: var(--radius);
+      color: var(--navy);
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 9px 16px;
+      cursor: pointer;
+      transition: background 0.15s;
+      height: 70px;
+      white-space: nowrap;
+    }
+
+    .send-btn:hover { background: #d4b45a; }
+    .send-btn:disabled { background: var(--slate); cursor: not-allowed; }
+
+    /* ── Analyze Tab ── */
+    #analyze-panel {
+      padding: 16px;
+      overflow-y: auto;
+      gap: 16px;
+    }
+
+    .analyze-intro {
+      font-size: 13px;
+      color: var(--slate-light);
+      line-height: 1.5;
+      padding: 12px;
+      background: var(--navy-light);
+      border-radius: var(--radius);
+      border: 1px solid var(--border-soft);
+    }
+
+    .analyze-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .action-card {
+      background: var(--navy-light);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .action-card:hover {
+      border-color: var(--brass-dim);
+      background: rgba(201,168,76,0.05);
+    }
+
+    .action-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+
+    .action-text h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 3px;
+    }
+
+    .action-text p {
+      font-size: 12px;
+      color: var(--slate);
+      line-height: 1.4;
+    }
+
+    #analyze-output {
+      margin-top: 0;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--slate-light);
+    }
+
+    #analyze-output h3 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 16px;
+      color: var(--white);
+      font-weight: 400;
+      margin: 14px 0 8px;
+    }
+
+    #analyze-output ul {
+      padding-left: 18px;
+    }
+
+    #analyze-output li { margin-bottom: 5px; }
+
+    /* ── Risk Tab ── */
+    #risk-panel {
+      padding: 16px;
+      overflow-y: auto;
+      gap: 16px;
+    }
+
+    .risk-gauge-wrapper {
+      text-align: center;
+      padding: 20px 16px 10px;
+    }
+
+    .gauge-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 18px;
+      font-weight: 400;
+      margin-bottom: 16px;
+      color: var(--white);
+    }
+
+    /* SVG gauge */
+    .gauge-svg { overflow: visible; }
+
+    .risk-score-label {
+      font-family: 'DM Serif Display', serif;
+      font-size: 36px;
+      fill: var(--white);
+    }
+
+    .risk-score-sub {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      fill: var(--slate);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .risk-level-label {
+      font-family: 'DM Serif Display', serif;
+      font-size: 18px;
+      letter-spacing: 0.03em;
+    }
+
+    .risk-scan-btn {
+      display: block;
+      width: 100%;
+      background: var(--brass);
+      border: none;
+      border-radius: var(--radius);
+      color: var(--navy);
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 11px;
+      cursor: pointer;
+      margin: 12px 0;
+      transition: background 0.15s;
+      letter-spacing: 0.04em;
+    }
+
+    .risk-scan-btn:hover { background: #d4b45a; }
+    .risk-scan-btn:disabled { background: var(--slate); cursor: not-allowed; }
+
+    .risk-categories { display: flex; flex-direction: column; gap: 8px; }
+
+    .risk-cat {
+      background: var(--navy-light);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+    }
+
+    .risk-cat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .risk-cat-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--white);
+    }
+
+    .risk-bar-track {
+      height: 4px;
+      background: rgba(139,155,180,0.2);
+      border-radius: 2px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+
+    .risk-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
+      width: 0%;
+    }
+
+    .risk-cat-note {
+      font-size: 11px;
+      color: var(--slate);
+      margin-top: 5px;
+      line-height: 1.4;
+    }
+
+    /* ── Scrollbar Styling ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--navy-light); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--slate); }
+
+    /* ── Utilities ── */
+    .hidden { display: none !important; }
+
+    /* Loading overlay */
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(11,22,41,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      backdrop-filter: blur(2px);
+    }
+
+    .loading-spinner {
+      text-align: center;
+      color: var(--slate-light);
+    }
+
+    .spinner-ring {
+      width: 40px; height: 40px;
+      border: 3px solid var(--navy-light);
+      border-top-color: var(--brass);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <div class="logo">
+    <span class="logo-wordmark">Lex<em>AI</em></span>
+    <span class="logo-tag">Legal Document Assistant</span>
+  </div>
+  <div class="header-right">
+    <span class="disclaimer-badge">⚠ Not legal advice</span>
+    <div class="key-field">
+      <span class="key-label">Gemini Key</span>
+      <input type="password" id="api-key" placeholder="AIza..." autocomplete="off" />
+      <div id="key-status" class="status-pip"></div>
+    </div>
+  </div>
+</header>
+
+<!-- ── Workspace ── -->
+<div class="workspace">
+
+  <!-- Left: Document List -->
+  <div class="panel-left">
+    <div class="panel-label">Documents</div>
+
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" multiple accept=".pdf" />
+      <span class="upload-icon">📄</span>
+      <div class="upload-text">
+        <strong>Upload Contracts & Filings</strong>
+        PDFs, agreements, leases, terms
+      </div>
+    </div>
+
+    <div class="doc-list" id="doc-list"></div>
+  </div>
+
+  <!-- Center: PDF Viewer -->
+  <div class="panel-center" id="panel-center">
+    <div class="pdf-toolbar" id="pdf-toolbar" style="display:none;">
+      <span class="pdf-toolbar-title" id="pdf-toolbar-title">—</span>
+      <span class="pdf-page-count" id="pdf-page-count"></span>
+    </div>
+
+    <div id="empty-center" class="empty-center">
+      <div class="empty-center-icon">⚖️</div>
+      <h2>No document open</h2>
+      <p>Upload a legal document from the left panel to read and analyse it.</p>
+    </div>
+
+    <div id="pdf-scroll" style="display:none;"></div>
+
+    <div id="loading-overlay" class="loading-overlay hidden">
+      <div class="loading-spinner">
+        <div class="spinner-ring"></div>
+        <div style="font-size:13px;">Processing document…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Analysis Panel -->
+  <div class="panel-right">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="ask">💬 Ask</button>
+      <button class="tab-btn" data-tab="analyze">📋 Analyse</button>
+      <button class="tab-btn" data-tab="risk">🔴 Risk Scan</button>
+    </div>
+
+    <!-- ASK TAB -->
+    <div class="tab-panel active" id="tab-ask">
+      <div id="chat-messages">
+        <div class="msg bot">
+          <span class="msg-role">LexAI</span>
+          <div class="msg-bubble">
+            Upload a legal document, then ask me anything about it — clauses, obligations, deadlines, parties, or potential issues. I'll cite exact pages.
+          </div>
+        </div>
+      </div>
+
+      <div class="suggested-qs hidden" id="suggested-qs">
+        <div class="sq-label">Suggested questions</div>
+      </div>
+
+      <div class="chat-input-area">
+        <textarea id="chat-input" placeholder="e.g. What are the termination clauses?&#10;Press Enter to send."></textarea>
+        <button class="send-btn" id="send-btn">Send</button>
+      </div>
+    </div>
+
+    <!-- ANALYSE TAB -->
+    <div class="tab-panel" id="tab-analyze">
+      <div id="analyze-panel">
+        <div class="analyze-intro">
+          Run a structured analysis on the active document. Each tool extracts specific legal intelligence and presents it clearly.
+        </div>
+
+        <div class="analyze-actions">
+          <div class="action-card" data-action="summary">
+            <span class="action-icon">📝</span>
+            <div class="action-text">
+              <h4>Executive Summary</h4>
+              <p>What is this document, who are the parties, and what does it govern?</p>
+            </div>
+          </div>
+
+          <div class="action-card" data-action="obligations">
+            <span class="action-icon">📌</span>
+            <div class="action-text">
+              <h4>Key Obligations</h4>
+              <p>Extract all duties, deadlines, and deliverables from each party.</p>
+            </div>
+          </div>
+
+          <div class="action-card" data-action="redflags">
+            <span class="action-icon">🚩</span>
+            <div class="action-text">
+              <h4>Red Flag Clauses</h4>
+              <p>Identify one-sided, unusual, or potentially harmful provisions.</p>
+            </div>
+          </div>
+
+          <div class="action-card" data-action="definitions">
+            <span class="action-icon">📖</span>
+            <div class="action-text">
+              <h4>Defined Terms Glossary</h4>
+              <p>Pull every capitalised or explicitly defined term with its definition.</p>
+            </div>
+          </div>
+
+          <div class="action-card" data-action="dates">
+            <span class="action-icon">📅</span>
+            <div class="action-text">
+              <h4>Important Dates & Deadlines</h4>
+              <p>List every date, duration, and time-sensitive provision.</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="analyze-output"></div>
+      </div>
+    </div>
+
+    <!-- RISK TAB -->
+    <div class="tab-panel" id="tab-risk">
+      <div id="risk-panel">
+        <div class="risk-gauge-wrapper">
+          <div class="gauge-title">Contract Risk Score</div>
+          <svg class="gauge-svg" viewBox="0 0 200 120" width="200" height="120">
+            <!-- Track arc -->
+            <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(139,155,180,0.2)" stroke-width="14" stroke-linecap="round"/>
+            <!-- Fill arc (animated via JS) -->
+            <path id="gauge-fill" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#4CAF6A" stroke-width="14" stroke-linecap="round"
+                  stroke-dasharray="251.2" stroke-dashoffset="251.2" style="transition: stroke-dashoffset 1.2s cubic-bezier(0.22,1,0.36,1), stroke 0.5s;"/>
+            <!-- Score text -->
+            <text id="gauge-score" class="risk-score-label" x="100" y="96" text-anchor="middle">—</text>
+            <text class="risk-score-sub" x="100" y="112" text-anchor="middle">RISK INDEX</text>
+            <!-- Level text -->
+            <text id="gauge-level" class="risk-level-label" x="100" y="76" text-anchor="middle" fill="#8B9BB4">—</text>
+          </svg>
+        </div>
+
+        <button class="risk-scan-btn" id="risk-scan-btn">⚡ Run Risk Scan</button>
+
+        <div class="risk-categories" id="risk-categories"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── State ──
+const S = {
+  apiKey: '',
+  keyValid: false,
+  docs: [],        // { id, name, pages, textContent, riskScore, riskData }
+  activeId: null,
+  renderingId: null,
+};
+
+// ── DOM ──
+const $ = id => document.getElementById(id);
+const apiKeyEl    = $('api-key');
+const keyStatus   = $('key-status');
+const fileInput   = $('file-input');
+const uploadZone  = $('upload-zone');
+const docList     = $('doc-list');
+const emptyCenter = $('empty-center');
+const pdfScroll   = $('pdf-scroll');
+const pdfToolbar  = $('pdf-toolbar');
+const pdfTitle    = $('pdf-toolbar-title');
+const pdfPages    = $('pdf-page-count');
+const loadingOver = $('loading-overlay');
+const chatMsgs    = $('chat-messages');
+const suggestedQs = $('suggested-qs');
+const chatInput   = $('chat-input');
+const sendBtn     = $('send-btn');
+const analyzeOut  = $('analyze-output');
+const riskScanBtn = $('risk-scan-btn');
+const riskCats    = $('risk-categories');
+const gaugeFill   = $('gauge-fill');
+const gaugeScore  = $('gauge-score');
+const gaugeLevel  = $('gauge-level');
+
+// ── Init ──
+window.onload = () => {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  apiKeyEl.addEventListener('input', e => {
+    S.apiKey = e.target.value.trim();
+    S.keyValid = S.apiKey.length > 20;
+    keyStatus.classList.toggle('on', S.keyValid);
+  });
+
+  uploadZone.addEventListener('click', () => fileInput.click());
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.style.borderColor = 'var(--brass)'; });
+  uploadZone.addEventListener('dragleave', () => { uploadZone.style.borderColor = ''; });
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.style.borderColor = '';
+    handleFiles(Array.from(e.dataTransfer.files));
+  });
+  fileInput.addEventListener('change', e => handleFiles(Array.from(e.target.files)));
+
+  sendBtn.addEventListener('click', doSend);
+  chatInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
+  });
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      $('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Analyse action cards
+  document.querySelectorAll('.action-card').forEach(card => {
+    card.addEventListener('click', () => runAnalysis(card.dataset.action));
+  });
+
+  riskScanBtn.addEventListener('click', runRiskScan);
+};
+
+// ── File Handling ──
+async function handleFiles(files) {
+  const pdfs = files.filter(f => f.type === 'application/pdf');
+  if (!pdfs.length) return;
+
+  loadingOver.classList.remove('hidden');
+  try {
+    for (const file of pdfs) {
+      const id = 'doc_' + Math.random().toString(36).substr(2, 8);
+      const ab = await file.arrayBuffer();
+      const pdfDoc = await pdfjsLib.getDocument({ data: ab }).promise;
+      let text = '';
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const content = await page.getTextContent();
+        text += `\n[Page ${i}]\n` + content.items.map(it => it.str).join(' ') + '\n';
+      }
+      S.docs.push({ id, name: file.name, pages: pdfDoc.numPages, pdfDoc, textContent: text, riskScore: null, riskData: null });
+      if (!S.activeId) setActive(id);
+    }
+    renderDocList();
+  } finally {
+    loadingOver.classList.add('hidden');
+    fileInput.value = '';
+  }
+}
+
+function renderDocList() {
+  docList.innerHTML = '';
+  S.docs.forEach(doc => {
+    const div = document.createElement('div');
+    div.className = 'doc-item' + (S.activeId === doc.id ? ' active' : '');
+
+    let riskChip = '<span class="doc-risk-chip risk-none">Unscanned</span>';
+    if (doc.riskScore !== null) {
+      const lvl = doc.riskScore >= 70 ? ['high','HIGH'] : doc.riskScore >= 40 ? ['med','MED'] : ['low','LOW'];
+      riskChip = `<span class="doc-risk-chip risk-${lvl[0]}">${lvl[1]}</span>`;
+    }
+
+    div.innerHTML = `
+      <span class="doc-icon">📄</span>
+      <div class="doc-meta">
+        <div class="doc-name" title="${doc.name}">${doc.name}</div>
+        <div class="doc-pages">${doc.pages} page${doc.pages !== 1 ? 's' : ''}</div>
+      </div>
+      ${riskChip}
+      <button class="doc-del" data-id="${doc.id}" title="Remove">×</button>`;
+
+    div.addEventListener('click', e => {
+      if (e.target.classList.contains('doc-del')) return;
+      setActive(doc.id);
+    });
+
+    div.querySelector('.doc-del').addEventListener('click', e => {
+      e.stopPropagation();
+      S.docs = S.docs.filter(d => d.id !== doc.id);
+      if (S.activeId === doc.id) {
+        setActive(S.docs.length ? S.docs[0].id : null);
+      } else {
+        renderDocList();
+      }
+    });
+
+    docList.appendChild(div);
+  });
+}
+
+async function setActive(id) {
+  S.activeId = id;
+  renderDocList();
+  const doc = S.docs.find(d => d.id === id);
+
+  if (!doc) {
+    emptyCenter.style.display = 'flex';
+    pdfScroll.style.display = 'none';
+    pdfToolbar.style.display = 'none';
+    return;
+  }
+
+  emptyCenter.style.display = 'none';
+  pdfScroll.style.display = 'flex';
+  pdfToolbar.style.display = 'flex';
+  pdfTitle.textContent = doc.name;
+  pdfPages.textContent = `${doc.pages} pages`;
+  pdfScroll.innerHTML = '';
+
+  S.renderingId = id;
+  for (let i = 1; i <= doc.pdfDoc.numPages; i++) {
+    if (S.renderingId !== id) break;
+    const page = await doc.pdfDoc.getPage(i);
+    const vp = page.getViewport({ scale: 1.5 });
+    const canvas = document.createElement('canvas');
+    canvas.className = 'pdf-page-canvas';
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    pdfScroll.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  }
+
+  // Show risk data if already scanned
+  if (doc.riskScore !== null) renderGauge(doc.riskScore, doc.riskData);
+
+  // Generate suggested questions
+  generateSuggestedQuestions(doc);
+}
+
+// ── Gemini API ──
+async function callGemini(prompt, systemPrompt = '', maxTokens = 2048) {
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.15, maxOutputTokens: maxTokens }
+  };
+  if (systemPrompt) body.systemInstruction = { parts: [{ text: systemPrompt }] };
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${S.apiKey}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
+}
+
+// Safely extract JSON from a response that may have extra text or be truncated
+function extractJSON(raw) {
+  // Strip markdown fences
+  let cleaned = raw.replace(/```json|```/g, '').trim();
+
+  // Try direct parse first
+  try { return JSON.parse(cleaned); } catch (_) {}
+
+  // Find the first { ... } block
+  const start = cleaned.indexOf('{');
+  if (start === -1) throw new Error('No JSON object found in response');
+
+  // Walk forward to find a balanced closing brace
+  let depth = 0, end = -1;
+  for (let i = start; i < cleaned.length; i++) {
+    if (cleaned[i] === '{') depth++;
+    else if (cleaned[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+  }
+
+  // If balanced block found, parse it
+  if (end !== -1) {
+    try { return JSON.parse(cleaned.slice(start, end + 1)); } catch (_) {}
+  }
+
+  // Last resort: truncate at last complete property by finding last }
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (lastBrace > start) {
+    try { return JSON.parse(cleaned.slice(start, lastBrace + 1)); } catch (_) {}
+  }
+
+  throw new Error('Could not parse JSON from response — document may be too large');
+}
+
+// Truncate document text to a safe character limit for API calls
+function safeText(text, maxChars = 28000) {
+  if (text.length <= maxChars) return text;
+  return text.slice(0, maxChars) + '\n\n[... document truncated for analysis ...]';
+}
+
+// ── Chat ──
+function activeDoc() { return S.docs.find(d => d.id === S.activeId); }
+
+function addMsg(role, html, isError = false) {
+  const wrapper = document.createElement('div');
+  wrapper.className = `msg ${role}`;
+  wrapper.innerHTML = `
+    <span class="msg-role">${role === 'user' ? 'You' : 'LexAI'}</span>
+    <div class="msg-bubble ${isError ? 'error' : ''}">${html}</div>`;
+  chatMsgs.appendChild(wrapper);
+  chatMsgs.scrollTop = chatMsgs.scrollHeight;
+  return wrapper;
+}
+
+function fmtText(text) {
+  // Bold, references, newlines
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[([^\]]+?(?:Page|p\.)\s*\d+[^\]]*?)\]/gi, '<span class="clause-ref">[$1]</span>')
+    .replace(/\n/g, '<br>');
+}
+
+async function doSend() {
+  const q = chatInput.value.trim();
+  if (!q) return;
+  if (!S.keyValid) { addMsg('bot', 'Please add your Gemini API key in the top right.', true); return; }
+  const doc = activeDoc();
+  if (!doc) { addMsg('bot', 'Open a document first.', true); return; }
+
+  chatInput.value = '';
+  addMsg('user', q);
+
+  const loading = addMsg('bot', '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>');
+
+  try {
+    const sys = `You are LexAI, a precise legal document analysis assistant. 
+Rules:
+1. Answer ONLY from the provided document text.
+2. Cite every factual claim with [DocumentName, Page N].
+3. If information is absent, say "This is not stated in the document."
+4. Use plain, clear English — avoid jargon unless quoting the document.
+5. Flag anything that looks legally risky with ⚠.`;
+
+    const prompt = `Document: "${doc.name}"\n\n${safeText(doc.textContent)}\n\nQuestion: ${q}`;
+    const reply = await callGemini(prompt, sys);
+    loading.querySelector('.msg-bubble').innerHTML = fmtText(reply);
+    chatMsgs.scrollTop = chatMsgs.scrollHeight;
+  } catch (err) {
+    loading.querySelector('.msg-bubble').innerHTML = `Error: ${err.message}`;
+    loading.querySelector('.msg-bubble').classList.add('error');
+  }
+}
+
+async function generateSuggestedQuestions(doc) {
+  if (!S.keyValid || !doc) return;
+  suggestedQs.classList.add('hidden');
+
+  try {
+    const prompt = `Based on this legal document excerpt, write exactly 3 short questions a client would ask their lawyer. 
+Reply with ONLY 3 lines, one question per line, no numbering, no bullets, no extra text.
+
+Document excerpt:
+${doc.textContent.substring(0, 1500)}`;
+
+    const raw = await callGemini(prompt, '', 256);
+    const qs = raw.split('\n').map(l => l.trim()).filter(l => l.length > 10 && l.includes('?')).slice(0, 3);
+    if (qs.length === 0) return;
+
+    suggestedQs.innerHTML = '<div class="sq-label">Suggested questions</div>';
+    qs.forEach(q => {
+      const btn = document.createElement('button');
+      btn.className = 'sq-btn';
+      btn.textContent = q;
+      btn.addEventListener('click', () => {
+        chatInput.value = q;
+        doSend();
+        suggestedQs.classList.add('hidden');
+      });
+      suggestedQs.appendChild(btn);
+    });
+    suggestedQs.classList.remove('hidden');
+  } catch (_) { /* silently skip */ }
+}
+
+// ── Analyse ──
+const ANALYSIS_PROMPTS = {
+  summary:      `Write a concise executive summary of this legal document in 3–4 paragraphs covering: (1) what type of document it is, (2) the parties involved, (3) the core subject matter and purpose, (4) the governing law if stated. Cite page numbers.`,
+  obligations:  `Extract all KEY OBLIGATIONS from this document. Format as a structured list grouped by party. For each obligation state: who must do it, what they must do, and any deadline. Cite page numbers. Use bold for party names.`,
+  redflags:     `Identify all RED FLAG CLAUSES in this document that are unusual, one-sided, potentially harmful, or worth negotiating. For each: name the clause type, quote the key language briefly, explain why it is a red flag, and cite the page. Start each item with 🚩.`,
+  definitions:  `Extract all DEFINED TERMS from this document (capitalised terms, or terms explicitly defined with "means", "refers to", etc.). Present as a glossary: **Term** — definition. Cite page numbers. Sort alphabetically.`,
+  dates:        `List ALL dates, durations, deadlines, and time-sensitive provisions in this document. For each: state the date/period, what it governs, and cite the page. Flag any that appear tight or risky with ⚠.`,
+};
+
+async function runAnalysis(action) {
+  if (!S.keyValid) { analyzeOut.innerHTML = '<p style="color:var(--danger)">Add your Gemini API key first.</p>'; return; }
+  const doc = activeDoc();
+  if (!doc) { analyzeOut.innerHTML = '<p style="color:var(--danger)">Open a document first.</p>'; return; }
+
+  analyzeOut.innerHTML = `<div style="color:var(--slate);font-size:13px;padding:12px 0;">
+    <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span> Analysing…</div>`;
+
+  const sys = `You are a senior legal analyst. Extract precise, actionable information from the provided document. Always cite page numbers in brackets like [Page N].`;
+  const prompt = `${ANALYSIS_PROMPTS[action]}\n\nDocument: "${doc.name}"\n${safeText(doc.textContent)}`;
+
+  try {
+    const result = await callGemini(prompt, sys);
+    analyzeOut.innerHTML = fmtText(result)
+      .replace(/<br><br>/g, '</p><p style="margin-top:8px">')
+      .replace(/^/, '<p>')
+      .replace(/$/, '</p>');
+  } catch (err) {
+    analyzeOut.innerHTML = `<p style="color:var(--danger)">Error: ${err.message}</p>`;
+  }
+}
+
+// ── Risk Scan ──
+// Ask for plain pipe-delimited lines instead of JSON — far more reliable
+async function runRiskScan() {
+  if (!S.keyValid) { alert('Add your Gemini API key first.'); return; }
+  const doc = activeDoc();
+  if (!doc) { alert('Open a document first.'); return; }
+
+  riskScanBtn.disabled = true;
+  riskScanBtn.textContent = 'Scanning…';
+  riskCats.innerHTML = `<div style="color:var(--slate);font-size:13px;padding:8px 0;text-align:center;">
+    <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+
+  const docSnippet = safeText(doc.textContent, 18000);
+
+  const prompt = `You are a legal risk analyst. Read this contract and score it on 6 risk categories.
+
+Reply with EXACTLY 7 lines, nothing else. No headings, no explanation, no blank lines.
+Line format: CATEGORY_NAME|SCORE|ONE_SENTENCE_NOTE
+The last line must be: OVERALL|SCORE|LEVEL  (LEVEL is LOW, MEDIUM, or HIGH)
+Scores are integers 0-100 where 100 = maximum risk.
+
+Example output (replace with real analysis):
+Liability Exposure|72|Indemnification clause is broadly worded and favours the vendor.
+Termination Risk|45|Either party may terminate with 30 days notice without cause.
+Payment Terms|30|Payment schedule is clearly defined with standard net-30 terms.
+Intellectual Property|80|All IP created during engagement is assigned to the client.
+Dispute Resolution|55|Arbitration required but venue is inconvenient for one party.
+Confidentiality|60|NDA is perpetual with no carve-outs for public domain information.
+OVERALL|57|MEDIUM
+
+Document: ${doc.name}
+${docSnippet}`;
+
+  try {
+    const raw = await callGemini(prompt, '', 512);
+    const data = parseRiskLines(raw);
+    doc.riskScore = data.overallScore;
+    doc.riskData = data;
+    renderDocList();
+    renderGauge(data.overallScore, data);
+  } catch (err) {
+    riskCats.innerHTML = `<p style="color:var(--danger);font-size:13px;">Error: ${err.message}<br><small style="opacity:0.7">Try a shorter document or check your API key.</small></p>`;
+  } finally {
+    riskScanBtn.disabled = false;
+    riskScanBtn.textContent = '⚡ Run Risk Scan';
+  }
+}
+
+function parseRiskLines(raw) {
+  // Extract only lines that match CATEGORY|NUMBER|TEXT pattern
+  const lines = raw.split('\n').map(l => l.trim()).filter(l => l.includes('|'));
+  const categories = [];
+  let overallScore = 50;
+  let level = 'MEDIUM';
+
+  for (const line of lines) {
+    const parts = line.split('|').map(p => p.trim());
+    if (parts.length < 3) continue;
+    const [name, scoreStr, note] = parts;
+    const score = parseInt(scoreStr, 10);
+    if (isNaN(score)) continue;
+
+    if (name.toUpperCase() === 'OVERALL') {
+      overallScore = Math.min(100, Math.max(0, score));
+      level = note.toUpperCase().includes('HIGH') ? 'HIGH'
+            : note.toUpperCase().includes('LOW') ? 'LOW' : 'MEDIUM';
+    } else {
+      categories.push({ name, score: Math.min(100, Math.max(0, score)), note });
+    }
+  }
+
+  if (categories.length === 0) throw new Error('Could not parse risk scores from response');
+
+  // Derive overall from category average if not provided
+  if (overallScore === 50 && categories.length > 0) {
+    overallScore = Math.round(categories.reduce((s, c) => s + c.score, 0) / categories.length);
+  }
+
+  level = overallScore >= 70 ? 'HIGH' : overallScore >= 40 ? 'MEDIUM' : 'LOW';
+  return { overallScore, level, categories };
+}
+
+function renderGauge(score, data) {
+  // Gauge arc: total length ~251.2 for the semicircle
+  const arcLength = 251.2;
+  const offset = arcLength - (score / 100) * arcLength;
+  gaugeFill.style.strokeDashoffset = offset;
+
+  const color = score >= 70 ? '#D94F4F' : score >= 40 ? '#D9934F' : '#4CAF6A';
+  gaugeFill.style.stroke = color;
+  gaugeScore.textContent = score;
+  gaugeScore.style.fill = color;
+
+  const level = data?.level || (score >= 70 ? 'HIGH' : score >= 40 ? 'MEDIUM' : 'LOW');
+  gaugeLevel.textContent = level;
+  gaugeLevel.style.fill = color;
+
+  if (!data?.categories) return;
+
+  riskCats.innerHTML = '';
+  data.categories.forEach(cat => {
+    const catColor = cat.score >= 70 ? '#D94F4F' : cat.score >= 40 ? '#D9934F' : '#4CAF6A';
+    const div = document.createElement('div');
+    div.className = 'risk-cat';
+    div.innerHTML = `
+      <div class="risk-cat-header">
+        <span class="risk-cat-name">${cat.name}</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${catColor};">${cat.score}</span>
+      </div>
+      <div class="risk-bar-track"><div class="risk-bar-fill" style="background:${catColor};" data-target="${cat.score}"></div></div>
+      <div class="risk-cat-note">${cat.note}</div>`;
+    riskCats.appendChild(div);
+  });
+
+  // Animate bars
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.risk-bar-fill').forEach(bar => {
+      bar.style.width = bar.dataset.target + '%';
+    });
+  });
+}
+</script>
+</body>
+</html>
